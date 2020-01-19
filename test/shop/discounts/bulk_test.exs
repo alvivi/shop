@@ -1,4 +1,4 @@
-defmodule ShopTest.Discounts.Bulk do
+defmodule Shop.Discounts.BulkTest do
   use Shop.Case, async: true
 
   alias Shop.{Checkout, Discounts.Bulk, Product}
@@ -6,14 +6,14 @@ defmodule ShopTest.Discounts.Bulk do
   property "does nothing when applied to a non-existing product" do
     forall checkout <- checkout(item_codes: ~w(bar qux)) do
       checkout_after_discount = Bulk.apply(%{count: 1, price: 0, product: "foo"}, checkout)
-      checkout_after_discount == checkout
+      assert checkout_after_discount == checkout
     end
   end
 
   property "does nothing when count is equal or less than zero" do
     forall [checkout <- checkout(item_codes: ~w(foo bar qux)), count <- neg_integer()] do
       checkout_after_discount = Bulk.apply(%{count: count, price: 0, product: "foo"}, checkout)
-      checkout_after_discount == checkout
+      assert checkout_after_discount == checkout
     end
   end
 
@@ -24,14 +24,14 @@ defmodule ShopTest.Discounts.Bulk do
       checkout_after_discount =
         Bulk.apply(%{count: count + 1, price: 0, product: "foo"}, checkout)
 
-      checkout_after_discount == checkout
+      assert checkout_after_discount == checkout
     end
   end
 
   property "checkout price is always lower or equal than without discount (upper bound)" do
     forall checkout <- checkout(non_empty: true, free_items: false, item_codes: ~w(foo bar qux)) do
       checkout_after_discount = Bulk.apply(%{count: 1, price: 0, product: "foo"}, checkout)
-      Checkout.price(checkout_after_discount) <= Checkout.price(checkout)
+      assert Checkout.price(checkout_after_discount) <= Checkout.price(checkout)
     end
   end
 
@@ -44,20 +44,34 @@ defmodule ShopTest.Discounts.Bulk do
         | items: Enum.reject(checkout.items, &("foo" == &1.code))
       }
 
-      Checkout.price(checkout_after_discount) >= Checkout.price(checkout_no_foo)
+      assert Checkout.price(checkout_after_discount) >= Checkout.price(checkout_no_foo)
     end
   end
 
-  test "discount attach extra information" do
-    coffee = Product.new("CF1", "Coffee", 1123)
+  setup do
+    product = Product.new("CF1", "Coffee", 1123)
 
     checkout =
       "checkout"
       |> Checkout.new()
-      |> Checkout.add_product(coffee)
-      |> Checkout.add_product(coffee)
+      |> Checkout.add_product(product)
+      |> Checkout.add_product(product)
 
-    discount = %{count: 2, price: 0, product: "CF1"}
+    {:ok, product: product, checkout: checkout, count: 2}
+  end
+
+  test "discount applies factor prices", %{product: product, checkout: checkout, count: count} do
+    discount = %{count: count, price: 2 / 3, product: product.code}
+    checkout_after_discount = Bulk.apply(discount, checkout)
+    assert Checkout.price(checkout_after_discount) == ceil(Checkout.price(checkout) * 2 / 3)
+  end
+
+  test "discount attach extra information", %{
+    product: product,
+    checkout: checkout,
+    count: count
+  } do
+    discount = %{count: count, price: 0, product: product.code}
 
     product_discount =
       discount

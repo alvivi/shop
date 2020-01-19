@@ -37,7 +37,15 @@ defmodule Shop.Discounts.Bulk do
             the discount
           """
         },
-        %{id: :price, kind: :number, description: "The new price of the product"}
+        %{
+          id: :price,
+          kind: :number,
+          description: """
+            The new price of the product. If this value is a integer then prices
+            are set to this value. If this value is a float then this value is
+            apply as factor of the original price.
+          """
+        }
       ]
     }
   end
@@ -65,13 +73,16 @@ defmodule Shop.Discounts.Bulk do
   @impl true
   def name(%{count: count}), do: "Bulk +#{count}"
 
-  defp apply_discount(%{price: price} = params, product) do
+  defp apply_discount(%{price: discount} = params, product) do
     extra = product.extra || %{}
 
     %Product{
       product
-      | price: price,
+      | price: compute_price(product.price, discount),
         extra: Map.merge(extra, %{discount: name(params), original_price: product.price})
     }
   end
+
+  defp compute_price(_price, discount) when is_integer(discount), do: discount
+  defp compute_price(price, discount), do: ceil(price * discount)
 end
