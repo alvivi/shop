@@ -10,7 +10,8 @@ defmodule Shop.MixProject do
       deps: deps(),
       dialyzer: dialyzer(),
       test_coverage: test_coverage(),
-      preferred_cli_env: preferred_cli_env()
+      preferred_cli_env: preferred_cli_env(),
+      elixirc_paths: elixirc_paths(Mix.env())
     ]
   end
 
@@ -47,4 +48,7 @@ defmodule Shop.MixProject do
       coveralls: :test
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test"]
+  defp elixirc_paths(_), do: ["lib"]
 end
