@@ -60,29 +60,59 @@ defmodule Shop.Discounts.Bulk do
     if product_count < count do
       checkout
     else
-      updated_item_list =
-        Enum.map(item_list, fn
-          %Product{code: ^product} = item -> apply_discount(params, item)
-          item -> item
-        end)
+      {updated_item_list, remainder} = apply_discount(params, item_list)
+      fixed_item_list = fix_remainder(params, updated_item_list, remainder)
 
-      %Checkout{checkout | items: updated_item_list}
+      %Checkout{checkout | items: fixed_item_list}
     end
   end
 
   @impl true
   def name(%{count: count}), do: "Bulk +#{count}"
 
-  defp apply_discount(%{price: discount} = params, product) do
-    extra = product.extra || %{}
-
-    %Product{
-      product
-      | price: compute_price(product.price, discount),
-        extra: Map.merge(extra, %{discount: name(params), original_price: product.price})
-    }
+  defp apply_discount(params, products) when is_list(products) do
+    Enum.reduce(products, {[], 0}, fn item, {list, remainder} ->
+      if item.code == params.product do
+        {updated_item, item_remainder} = apply_discount(params, item)
+        {[updated_item | list], remainder + item_remainder}
+      else
+        {[item | list], remainder}
+      end
+    end)
   end
 
-  defp compute_price(_price, discount) when is_integer(discount), do: discount
-  defp compute_price(price, discount), do: ceil(price * discount)
+  defp apply_discount(%{price: discount} = params, product) do
+    extra = product.extra || %{}
+    {new_price, remainder} = compute_price(product.price, discount)
+
+    product = %Product{
+      product
+      | price: new_price,
+        extra: Map.merge(extra, %{discount: name(params), original_price: product.price})
+    }
+
+    {product, remainder}
+  end
+
+  defp compute_price(_price, discount) when is_integer(discount), do: {discount, 0}
+
+  defp compute_price(price, discount) do
+    new_price = floor(price * discount)
+    remainder = price * discount - new_price
+
+    {new_price, remainder}
+  end
+
+  defp fix_remainder(params, products, remainder) do
+    products
+    |> Enum.reduce({[], ceil(remainder)}, fn item, {list, remainder} ->
+      if item.code == params.product do
+        new_item = %Product{item | price: item.price + remainder}
+        {[new_item | list], 0}
+      else
+        {[item | list], remainder}
+      end
+    end)
+    |> elem(0)
+  end
 end
