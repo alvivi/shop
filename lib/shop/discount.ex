@@ -78,7 +78,7 @@ defmodule Shop.Discount do
         ]
       }
   """
-  @spec apply(Checkout.t(), Discount.t()) :: Checkout.t()
+  @spec apply(Checkout.t(), t()) :: Checkout.t()
   def apply(checkout, %__MODULE__{kind: kind, parameters: params}) do
     DiscountKind.apply(kind, params, checkout)
   end
